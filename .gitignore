@@ -4,3 +4,9 @@ __pycache__/
 *.pyc
 venv/
 .env
+# Tickets generados por el sistema
+tickets/
+
+
+# Cierres de caja generados por el sistema
+cierres/

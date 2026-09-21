@@ -12,10 +12,12 @@ self.base_datos.insertar_producto(...).
 
 import sys
 import os
+from ventas import GestionVentas
 from tkinter import *
 from tkinter import messagebox
 from tkinter import ttk
 from PIL import Image, ImageTk
+from cambiar_contrasena import CambiarContrasena
 
 
 def recurso_path(nombre_archivo):
@@ -76,6 +78,14 @@ class VentanaPrincipal:
 
         self.cargar_todos_los_productos()
         self.contenedor_inicio.pack(fill=BOTH, expand=True)
+
+    def abrir_cambiar_contrasena(self):
+        """Abre la ventana para modificar la contraseña del usuario."""
+
+        CambiarContrasena(
+            self.ventana,
+            self.base_datos
+        )    
 
     # ---------- Construcción de la interfaz ----------
 
@@ -166,6 +176,22 @@ class VentanaPrincipal:
 
         self.label_volver_inicio.bind("<Enter>", _resaltar_volver_inicio)
         self.label_volver_inicio.bind("<Leave>", _quitar_resaltado_volver_inicio)
+
+        # Permite a la usuaria cambiar su contraseña desde el sistema.
+        Button(
+            contenedor,
+            text="🔑 Cambiar contraseña",
+            command=self.abrir_cambiar_contrasena,
+            bg=self.COLOR_HEADER,
+            fg="white",
+            activebackground="#166BAF",
+            activeforeground="white",
+            font=("Segoe UI", 9),
+            relief=FLAT,
+            cursor="hand2",
+            borderwidth=0
+        ).pack(side=RIGHT, padx=(15, 5), pady=10)
+
         Label(contenedor,text= "Rivadavia-Mendoza    Direccion: Liniers 920   Telefono: 2634777200 ",
               bg=self.COLOR_HEADER, fg=self.COLOR_HEADER_SUBTEXTO,
               font=("Segoe UI", 9)).pack(side=RIGHT, pady=10)
@@ -191,8 +217,23 @@ class VentanaPrincipal:
         self.contenedor_inicio = Frame(self.ventana, bg=self.COLOR_HEADER)
         self.contenedor_principal = Frame(self.ventana, bg=self.COLOR_FONDO)
         #self.contenedor_principal.pack(fill=BOTH, expand=True, padx=20, pady=20)
-        self.contenedor_principal2 = Frame(self.ventana, bg=self.COLOR_PRIMARIO)
-        #self.contenedor_principal2.pack(fill=BOTH, expand=True, padx=20, pady=20)
+        self.contenedor_principal2 = Frame(self.ventana, bg=self.COLOR_FONDO)
+
+        # Creamos el módulo de Gestión de Ventas dentro del contenedor correspondiente.
+        self.modulo_ventas = GestionVentas(
+        self.contenedor_principal2,
+        self.base_datos,
+        {
+        "fondo": self.COLOR_FONDO,
+        "tarjeta": self.COLOR_TARJETA,
+        "texto": self.COLOR_TEXTO,
+        "texto_suave": self.COLOR_TEXTO_SUAVE,
+        "borde": self.COLOR_BORDE,
+        "primario": self.COLOR_PRIMARIO,
+        "secundario": self.COLOR_SECUNDARIO,
+        "peligro": self.COLOR_PELIGRO,
+        }
+    )       
         self.panel_izquierdo = Frame(self.contenedor_principal, bg=self.COLOR_TARJETA,
                                       width=320, highlightbackground=self.COLOR_BORDE,
                                       highlightthickness=1)
@@ -357,7 +398,7 @@ class VentanaPrincipal:
         contenido.pack(fill=BOTH, expand=True, padx=20, pady=20)
 
         # --- Buscador ---
-        Label(contenido, text="BUSCAR PRODUCTO (por código o nombre)",
+        Label(contenido, text="BUSCAR PRODUCTO (por código,nombre o código de barra)",
               bg=self.COLOR_TARJETA, fg=self.COLOR_TEXTO_SUAVE,
               font=("Segoe UI", 8, "bold")).pack(anchor=W)
 
@@ -367,6 +408,9 @@ class VentanaPrincipal:
         self.entry_buscador = ttk.Entry(fila_busqueda, style="Campo.TEntry",
                                          font=("Segoe UI", 11))
         self.entry_buscador.pack(side=LEFT, fill=X, expand=True, ipady=2)
+        # Permite buscar automáticamente cuando el lector envía Enter.
+        # Espera a que el usuario termine de escribir antes de realizar la búsqueda.
+        self.entry_buscador.bind("<KeyRelease>", self.programar_busqueda)
 
         ttk.Button(fila_busqueda, text="Buscar (F1)", style="Secundario.TButton",
                    command=self.buscar).pack(side=LEFT, padx=(8, 0))
@@ -533,6 +577,7 @@ class VentanaPrincipal:
         self.entry_precio.insert(END, precio_limpio)
         self.entry_stock.insert(END,fila[6] if fila [6] is not None else "") # ME LARGABA UN ERROR EN LA VENTANA AL NO TENER LA DB CON STOCK
         self.entry_codigo_barras.insert(END, fila[7] if fila[7] is not None else "")
+        
     def refrescar_tabla(self, productos):
         for fila in self.tabla.get_children():
             self.tabla.delete(fila)
@@ -592,26 +637,60 @@ class VentanaPrincipal:
 
     def buscar(self):
         texto = self.entry_buscador.get().strip()
+
+        # Si el buscador está vacío, mostramos todos los productos.
         if texto == "":
-            messagebox.showwarning(title="Buscador vacío",
-                                    message="Escribí un código o parte de un nombre para buscar.")
+            self.cargar_todos_los_productos()
             return
 
-        # Si lo que escribió es un número, buscamos por código exacto.
-        # Si no, buscamos por nombre parcial.
+        resultados = []
+
+        # Si es numérico, primero buscamos por código de barras.
         if texto.isdigit():
-            resultados = self.base_datos.buscar_por_codigo(int(texto))
+            # Busca por código interno exacto o por el inicio del código de barras.
+            resultados = self.base_datos.buscar_por_codigo_o_barra(texto)
+
+            # Si no encontró por código de barras,
+            # recién ahí buscamos por código interno.
+            if not resultados:
+                resultados = self.base_datos.buscar_por_codigo(int(texto))
+
         else:
+            # Si tiene letras, buscamos por nombre parcial.
             resultados = self.base_datos.buscar_por_nombre_parcial(texto)
 
-        if not resultados:
-            messagebox.showinfo(title="Sin resultados",
-                                 message="No se encontró ningún producto con ese criterio.")
-            self.refrescar_tabla([])
-            return
-
+        # Actualizamos la tabla con lo encontrado.
         self.refrescar_tabla(resultados)
-        self.cargar_fila_en_campos(resultados[0])
+
+        # Si encontramos un solo producto,
+        # cargamos sus datos automáticamente en el formulario.
+        if len(resultados) == 1:
+            # Guardamos lo que el usuario está escribiendo en el buscador.
+            texto_buscado = self.entry_buscador.get()
+
+            # Cargamos el producto encontrado en el CRUD.
+            self.cargar_fila_en_campos(resultados[0])
+
+            # Restauramos el texto por si limpiar_campos() modificó el buscador.
+            self.entry_buscador.delete(0, END)
+            self.entry_buscador.insert(0, texto_buscado)
+
+            # Dejamos nuevamente el cursor en el buscador para poder seguir escribiendo.
+            self.entry_buscador.icursor(END)
+            self.entry_buscador.focus_set()
+
+    def programar_busqueda(self, event=None):
+        """Espera un instante antes de buscar para evitar búsquedas por cada tecla."""
+
+        # Si ya había una búsqueda pendiente, la cancelamos.
+        if hasattr(self, "_busqueda_pendiente"):
+            self.entry_buscador.after_cancel(self._busqueda_pendiente)
+
+        # Esperamos 400 milisegundos desde la última tecla.
+        self._busqueda_pendiente = self.entry_buscador.after(
+            400,
+            self.buscar
+        )
 
     def guardar(self):
         if not self.validar_campos_obligatorios():

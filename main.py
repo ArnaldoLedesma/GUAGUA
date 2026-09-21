@@ -7,9 +7,22 @@ toda la logica real vive dentro de cada clase.
 
 from base_datos import BaseDatos
 from ventana_principal import VentanaPrincipal, recurso_path
+from login import Login
 
 if __name__ == "__main__":
+
+    # Abrimos la base de datos antes del login porque las credenciales
+    # de acceso se encuentran almacenadas en SQLite.
     base_datos = BaseDatos(recurso_path("basededatos.db"))
-    app = VentanaPrincipal(base_datos)
-    app.iniciar()
+
+    # Mostramos la pantalla de inicio de sesión.
+    login = Login(base_datos)
+    login.iniciar()
+
+    # El sistema principal solamente se abre si el login fue correcto.
+    if login.acceso_permitido:
+        app = VentanaPrincipal(base_datos)
+        app.iniciar()
+
+    # Cerramos correctamente SQLite al finalizar el programa.
     base_datos.cerrar()
