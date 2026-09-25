@@ -1,4 +1,5 @@
 import os
+from rutas import obtener_carpeta_datos
 from tkinter import *
 from tkinter import ttk, messagebox
 from datetime import datetime
@@ -195,13 +196,15 @@ class CierreCaja:
         # Guardamos la fecha y hora exactas en las que se genera el cierre.
         fecha_actual = datetime.now()
 
-        # Creamos una carpeta exclusiva para guardar los cierres de caja.
-        carpeta_cierres = "cierres"
-        os.makedirs(carpeta_cierres, exist_ok=True)
+        # Guardamos los cierres en la carpeta de datos del negocio.
+        carpeta_cierres = obtener_carpeta_datos() / "cierres"
+
+        # Creamos la carpeta si todavía no existe.
+        carpeta_cierres.mkdir(parents=True, exist_ok=True)
 
         # Creamos un nombre único utilizando la fecha y la hora.
         nombre_archivo = fecha_actual.strftime("cierre_%d-%m-%Y_%H-%M-%S.txt")
-        ruta_cierre = os.path.join(carpeta_cierres, nombre_archivo)
+        ruta_cierre = str(carpeta_cierres / nombre_archivo)
 
         # Ancho preparado para un ticket térmico de 58 mm.
         ancho = 32

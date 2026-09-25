@@ -6,14 +6,15 @@ toda la logica real vive dentro de cada clase.
 """
 
 from base_datos import BaseDatos
-from ventana_principal import VentanaPrincipal, recurso_path
+from ventana_principal import VentanaPrincipal
+from rutas import obtener_ruta_db
 from login import Login
 
 if __name__ == "__main__":
 
     # Abrimos la base de datos antes del login porque las credenciales
-    # de acceso se encuentran almacenadas en SQLite.
-    base_datos = BaseDatos(recurso_path("basededatos.db"))
+    # Localizamos la base de datos según estemos en desarrollo o en el ejecutable.
+    base_datos = BaseDatos(str(obtener_ruta_db()))
 
     # Mostramos la pantalla de inicio de sesión.
     login = Login(base_datos)

@@ -10,3 +10,16 @@ tickets/
 
 # Cierres de caja generados por el sistema
 cierres/
+
+# Archivos generados por PyInstaller
+build/
+dist/
+*.spec
+
+# Ejecutables y carpetas de distribución
+*.exe
+GUAGUA_APP/
+GUAGUA_DATOS/
+
+# Copias de seguridad
+RESPALDO_GUAGUA/

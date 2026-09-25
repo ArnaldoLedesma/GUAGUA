@@ -6,6 +6,7 @@ No ejecuta SQL directamente: toda operación con SQLite se delega a BaseDatos.
 """
 
 import os
+from rutas import obtener_carpeta_datos
 from datetime import datetime
 from tkinter import *
 from tkinter import ttk, messagebox
@@ -322,11 +323,8 @@ class GestionVentas:
             400,
             self.buscar_producto
         )
-        # Esperamos 400 milisegundos desde la última tecla.
-        self._busqueda_venta_pendiente = self.entry_buscar.after(
-            400,
-            self.buscar_producto
-    ) 
+        
+     
 
     def buscar_producto(self):
         texto = self.entry_buscar.get().strip()
@@ -513,47 +511,64 @@ class GestionVentas:
     # ------------------------------------------------------------------
     # FINALIZACIÓN DE LA VENTA
     # ------------------------------------------------------------------
+    
     def finalizar_venta(self):
+        """Registra la venta y genera su comprobante."""
+
         if not self.carrito:
             messagebox.showwarning("Venta", "El carrito está vacío.")
             return
 
-        total = sum(item["cantidad"] * item["precio"] for item in self.carrito.values())
+        total = sum(
+            item["cantidad"] * item["precio"]
+            for item in self.carrito.values()
+        )
 
-        # Abrimos una ventana personalizada para confirmar la venta.
-        confirmar = self.confirmar_venta_personalizada(total)
-
-        # Si el usuario cancela, detenemos la operación.
-        if not confirmar:
+        if not self.confirmar_venta_personalizada(total):
             return
 
         items = list(self.carrito.values())
+        medio_pago = self.medio_pago.get()
 
+        # PRIMERA OPERACIÓN: registrar la venta en SQLite.
         try:
-            # BaseDatos vuelve a comprobar stock y ejecuta toda la operación
-            # dentro de una transacción: venta + detalle + descuento de stock.
-            # Obtenemos el medio de pago seleccionado por el usuario.
-            medio_pago = self.medio_pago.get()
-
-            # Registramos la venta junto con el medio de pago elegido.
             id_venta = self.base_datos.registrar_venta(
-                items,
-                total,
-                medio_pago
+                items, total, medio_pago
             )
 
-            ruta_ticket = self._generar_ticket(id_venta, items, total, medio_pago)
-
-            # Mostramos el comprobante directamente dentro del sistema.
-            
-               
-        
         except ValueError as error:
-            messagebox.showwarning("No se pudo realizar la venta", str(error))
+            messagebox.showwarning(
+                "No se pudo realizar la venta",
+                str(error)
+            )
             self.cargar_productos()
             return
+
         except Exception as error:
-            messagebox.showerror("Error", f"Ocurrió un error al registrar la venta:\n{error}")
+            messagebox.showerror(
+                "Error al registrar la venta",
+                str(error)
+            )
+            return
+
+        # La venta ya quedó registrada: actualizamos el sistema.
+        self.vaciar_carrito(pedir_confirmacion=False)
+        self.cargar_productos()
+        self.entry_buscar.delete(0, END)
+
+        # SEGUNDA OPERACIÓN: generar el ticket.
+        try:
+            ruta_ticket = self._generar_ticket(
+                id_venta, items, total, medio_pago
+            )
+
+        except Exception as error:
+            messagebox.showwarning(
+                "Venta registrada sin ticket",
+                f"La venta N.º {id_venta} se guardó correctamente, "
+                f"pero no se pudo generar el ticket:\n{error}\n\n"
+                "No vuelvas a registrar esta venta."
+            )
             return
 
         messagebox.showinfo(
@@ -562,11 +577,16 @@ class GestionVentas:
             f"Ticket generado en:\n{ruta_ticket}"
         )
 
-        self._mostrar_ticket(id_venta, items, total, medio_pago, ruta_ticket)
-
-        self.vaciar_carrito(pedir_confirmacion=False)
-        self.cargar_productos()  # Refleja inmediatamente el nuevo stock en pantalla.
-        self.entry_buscar.delete(0, END)
+        # Mostramos el comprobante dentro de GUAGUA.
+        try:
+            self._mostrar_ticket(
+                id_venta, items, total, medio_pago, ruta_ticket
+            )
+        except Exception as error:
+            messagebox.showwarning(
+                "Error en la vista previa",
+                f"El ticket se guardó, pero no se pudo mostrar:\n{error}"
+            )
 
     def confirmar_venta_personalizada(self, total):
         """Muestra una ventana personalizada para confirmar la venta."""
@@ -669,19 +689,22 @@ class GestionVentas:
     def _generar_ticket(self, id_venta, items, total, medio_pago):
         """Genera el comprobante de venta en formato TXT."""
 
-        carpeta_tickets = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "tickets"
-        )
-        os.makedirs(carpeta_tickets, exist_ok=True)
+        # Guardamos los tickets en la carpeta de datos del negocio.
+        # Durante el desarrollo utiliza la carpeta del proyecto.
+        # En el ejecutable utiliza GUAGUA_DATOS/tickets.
+        carpeta_tickets = obtener_carpeta_datos() / "tickets"
 
+        # Creamos la carpeta si todavía no existe.
+        carpeta_tickets.mkdir(parents=True, exist_ok=True)
+
+        # Obtenemos la fecha y hora de la venta.
         fecha = datetime.now()
 
         nombre_archivo = (
             f"ticket_{id_venta}_{fecha.strftime('%Y%m%d_%H%M%S')}.txt"
         )
 
-        ruta = os.path.join(carpeta_tickets, nombre_archivo)
+        ruta = str(carpeta_tickets / nombre_archivo)
 
         with open(ruta, "w", encoding="utf-8") as ticket:
 
