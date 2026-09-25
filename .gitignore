@@ -23,3 +23,6 @@ GUAGUA_DATOS/
 
 # Copias de seguridad
 RESPALDO_GUAGUA/
+
+# Herramienta privada de recuperación del administrador
+restablecer_admin.py
